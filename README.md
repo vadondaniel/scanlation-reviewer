@@ -73,6 +73,4 @@ Rules:
 - Viewer width and font size preferences persist for the active session. Theme mode is stored in `localStorage`.
 - Language toggles are generated from the `languages` array near the top of `index.html`; set the `code`, display `label`, markdown `file`, optional `hotkey`, and per-language `pageLabel` without touching the HTML.
 - Support new markdown heading styles by editing the `defaultPageHeadingFormats` list or adding `pageHeadingFormats` on a language entry—provide a regular expression that captures the page number and the parser will pick it up.
-
-## Contributing
-This is currently a single HTML file. If you plan to extend it, consider breaking the script into modules and adding tests or linting. Pull requests are welcome.
+- Keyboard shortcuts live in the `hotkeys` object in `index.html`; edit the `keys` arrays (and optional `display` strings) to remap or disable individual bindings.

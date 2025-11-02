@@ -191,12 +191,12 @@
     <div class="footer">
       <div class="footer-shortcuts hidden">
         <span class="muted">Shortcuts:</span>
-        <span class="badge"><span class="keycap">&larr;</span><span class="keycap">&rarr;</span><span class="shortcut-label">paginate</span></span>
-        <span class="badge" id="langShortcutBadge" style="display:none;"></span>
-        <span class="badge"><span class="keycap">0-9</span><span class="shortcut-label">jump</span></span>
-        <span class="badge"><span class="keycap">O</span><span class="keycap">L</span><span class="shortcut-label">text size &plusmn;</span></span>
-        <span class="badge"><span class="keycap">P</span><span class="shortcut-label">reset text size</span></span>
-        <span class="badge" id="imageCycleShortcut" style="display:none;"></span>
+        <span class="badge" id="paginateShortcut"></span>
+        <span class="badge hidden" id="langShortcutBadge"></span>
+        <span class="badge" id="jumpShortcut"></span>
+        <span class="badge" id="fontShortcut"></span>
+        <span class="badge" id="fontResetShortcut"></span>
+        <span class="badge hidden" id="imageCycleShortcut"></span>
       </div>
       <div class="footer-control hidden">
         <label class="sr-only" for="fontRange">Adjust text size</label>
@@ -295,12 +295,129 @@
     }
   ];
 
+  const hotkeys = {
+    // Keys control actual bindings; optional display strings update the footer legend.
+    prevPage: { keys: ['ArrowLeft'] },
+    nextPage: { keys: ['ArrowRight'] },
+    jumpDigits: { keys: ['0','1','2','3','4','5','6','7','8','9'], display: ['0-9'] },
+    increaseFont: { keys: ['o'] },
+    decreaseFont: { keys: ['l'] },
+    resetFont: { keys: ['p'] },
+    cycleImageSet: { keys: ['i'] }
+  };
+
   const languageMap = Object.fromEntries(languages.map(lang => [lang.code, lang]));
 
   const defaultPageHeadingFormats = [
     { pattern: /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s+.*)?$/i },
     { pattern: /^\s*##\s*(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i }
   ];
+
+  const HOTKEY_ALIASES = {
+    '←': 'ArrowLeft',
+    '→': 'ArrowRight',
+    '↑': 'ArrowUp',
+    '↓': 'ArrowDown',
+    'space': ' ',
+    'spacebar': ' ',
+    'return': 'Enter',
+    'enter': 'Enter',
+    'esc': 'Escape',
+    'escape': 'Escape'
+  };
+
+  const SPECIAL_DISPLAY_KEYS = {
+    ArrowLeft: '←',
+    ArrowRight: '→',
+    ArrowUp: '↑',
+    ArrowDown: '↓',
+    ' ': 'Space'
+  };
+
+  function normalizeHotkeyKey(key){
+    if(key === undefined || key === null) return '';
+    const trimmed = String(key).trim();
+    if(!trimmed) return '';
+    const alias = HOTKEY_ALIASES[trimmed] || HOTKEY_ALIASES[trimmed.toLowerCase()];
+    if(alias) return alias;
+    const digitMatch = trimmed.match(/^Digit([0-9])$/i);
+    if(digitMatch) return digitMatch[1];
+    const keyMatch = trimmed.match(/^Key([A-Z])$/);
+    if(keyMatch) return keyMatch[1].toLowerCase();
+    return trimmed;
+  }
+
+  function normalizeHotkeyEntry(entry){
+    let keys = [];
+    let display = [];
+    if(typeof entry === 'string' || Array.isArray(entry)){
+      keys = entry;
+    }else if(entry && typeof entry === 'object'){
+      if(Array.isArray(entry.keys)){
+        keys = entry.keys;
+      }else if(entry.key){
+        keys = [entry.key];
+      }
+      if(entry.display){
+        display = Array.isArray(entry.display) ? entry.display : [entry.display];
+      }
+    }
+    if(!Array.isArray(keys)){
+      keys = keys ? [keys] : [];
+    }
+    const normalizedKeys = keys.map(normalizeHotkeyKey).filter(Boolean);
+    const matchSet = new Set(normalizedKeys.map(k => k.toLowerCase()));
+    const displayKeys = (display.length ? display : keys)
+      .map(val => String(val).trim())
+      .filter(Boolean);
+    return { keys: normalizedKeys, display: displayKeys, matchSet };
+  }
+
+  function normalizeHotkeys(config){
+    const result = {};
+    Object.entries(config || {}).forEach(([action, value])=>{
+      result[action] = normalizeHotkeyEntry(value);
+    });
+    return result;
+  }
+
+  function formatShortcutDisplay(keys){
+    if(!Array.isArray(keys)) return [];
+    const seen = new Set();
+    const output = [];
+    keys.forEach(rawKey => {
+      if(rawKey === undefined || rawKey === null) return;
+      const normalized = normalizeHotkeyKey(rawKey);
+      const lookup = SPECIAL_DISPLAY_KEYS[normalized] || SPECIAL_DISPLAY_KEYS[rawKey];
+      const candidate = lookup || (normalized.length === 1 ? normalized.toUpperCase() : normalized || String(rawKey));
+      const dedupeKey = candidate.toLowerCase();
+      if(seen.has(dedupeKey)) return;
+      seen.add(dedupeKey);
+      output.push(candidate);
+    });
+    return output;
+  }
+
+  const hotkeyBindings = normalizeHotkeys(hotkeys);
+
+  function gatherHotkeyDisplays(...actions){
+    const buffer = [];
+    actions.forEach(action => {
+      const entry = hotkeyBindings[action];
+      if(entry && Array.isArray(entry.display)){
+        buffer.push(...entry.display);
+      }
+    });
+    return formatShortcutDisplay(buffer);
+  }
+
+  function matchHotkey(action, key){
+    const entry = hotkeyBindings[action];
+    if(!entry || !entry.matchSet.size) return false;
+    const normalized = normalizeHotkeyKey(key);
+    if(!normalized) return false;
+    return entry.matchSet.has(normalized.toLowerCase());
+  }
 
   function normalizePageHeadingFormats(formats){
     return (formats || []).map((format) => {
@@ -452,12 +569,43 @@
   const langButtons = {};
   const langShortcutBadge = document.getElementById('langShortcutBadge');
   const langGroup = document.getElementById('langGroup');
+  const paginateShortcutBadge = document.getElementById('paginateShortcut');
+  const jumpShortcutBadge = document.getElementById('jumpShortcut');
+  const fontShortcutBadge = document.getElementById('fontShortcut');
+  const fontResetShortcutBadge = document.getElementById('fontResetShortcut');
   const themeToggle = document.getElementById('themeToggle');
   const themeGroup = document.getElementById('themeGroup');
   const imageToggle = document.getElementById('imageToggle');
   const imageGroup = document.getElementById('imageGroup');
   const imageShortcutBadge = document.getElementById('imageCycleShortcut');
   const setHidden = (el, hidden) => { if(el) el.classList.toggle('hidden', !!hidden); };
+  const applyShortcutBadge = (el, keys, label='') => {
+    if(!el) return;
+    if(!Array.isArray(keys) || !keys.length){
+      el.style.display = 'none';
+      el.innerHTML = '';
+      return;
+    }
+    el.style.display = '';
+    renderShortcutBadge(el, keys, label);
+  };
+  const updateGlobalShortcutBadges = () => {
+    applyShortcutBadge(paginateShortcutBadge, gatherHotkeyDisplays('prevPage','nextPage'), 'paginate');
+    applyShortcutBadge(jumpShortcutBadge, gatherHotkeyDisplays('jumpDigits'), 'jump');
+    applyShortcutBadge(fontShortcutBadge, gatherHotkeyDisplays('increaseFont','decreaseFont'), '± text size');
+    applyShortcutBadge(fontResetShortcutBadge, gatherHotkeyDisplays('resetFont'), 'reset text size');
+  };
+  const applyImageShortcutBadge = (shouldShow) => {
+    if(!imageShortcutBadge) return;
+    const keys = gatherHotkeyDisplays('cycleImageSet');
+    if(!shouldShow || !keys.length){
+      setHidden(imageShortcutBadge, true);
+      imageShortcutBadge.innerHTML = '';
+      return;
+    }
+    setHidden(imageShortcutBadge, false);
+    renderShortcutBadge(imageShortcutBadge, keys, 'image set');
+  };
   let imageSetButtons = {};
   setHidden(imageToggle, true);
   setHidden(imageGroup, true);
@@ -491,7 +639,11 @@
       if(lang.name) parts.push(lang.name);
       parts.push(labelText);
       if(lang.hotkey){
-        parts.push(`Hotkey: ${lang.hotkey.toUpperCase()}`);
+        const hotkeyValues = Array.isArray(lang.hotkey) ? lang.hotkey : [lang.hotkey];
+        const hotkeyDisplay = formatShortcutDisplay(hotkeyValues);
+        if(hotkeyDisplay.length){
+          parts.push(`Hotkey: ${hotkeyDisplay.join('/')}`);
+        }
       }
       const tooltip = parts.join(' · ');
       btn.setAttribute('aria-label', tooltip);
@@ -508,6 +660,7 @@
 
   buildLanguageToggle();
   updateLangButtons();
+  updateGlobalShortcutBadges();
 
   // Helpers
   const byName = name => Array.from(state.files).find(f => f.name.toLowerCase() === name.toLowerCase());
@@ -914,17 +1067,21 @@
         langShortcutBadge.innerHTML = '';
       }else{
         setHidden(langShortcutBadge, false);
-        const hotkeys = state.availableLangs.map(code => {
+        const hotkeyLabels = state.availableLangs.map(code => {
           const entry = languageMap[code];
-          if(entry && entry.hotkey){
-            return entry.hotkey.toUpperCase();
-          }
-          if(entry && entry.label){
-            return entry.label.toUpperCase();
+          if(entry){
+            const values = Array.isArray(entry.hotkey) ? entry.hotkey : entry.hotkey ? [entry.hotkey] : [];
+            const displayKeys = formatShortcutDisplay(values);
+            if(displayKeys.length){
+              return displayKeys[0];
+            }
+            if(entry.label){
+              return String(entry.label).toUpperCase();
+            }
           }
           return code.toUpperCase();
-        });
-        renderShortcutBadge(langShortcutBadge, hotkeys, 'toggle language');
+        }).filter(Boolean);
+        renderShortcutBadge(langShortcutBadge, hotkeyLabels, 'change language');
       }
     }
   }
@@ -936,18 +1093,12 @@
     if(state.availableImageSets.length <= 1){
       setHidden(imageToggle, true);
       setHidden(imageGroup, true);
-      if(imageShortcutBadge){
-        setHidden(imageShortcutBadge, true);
-        imageShortcutBadge.innerHTML = '';
-      }
+      applyImageShortcutBadge(false);
       return;
     }
     setHidden(imageToggle, false);
     setHidden(imageGroup, false);
-    if(imageShortcutBadge){
-      setHidden(imageShortcutBadge, false);
-      renderShortcutBadge(imageShortcutBadge, ['I'], 'image set');
-    }
+    applyImageShortcutBadge(true);
     state.availableImageSets.forEach(setKey=>{
       const btn = document.createElement('button');
       btn.type = 'button';
@@ -972,18 +1123,12 @@ function updateImageSetButtons(){
     if(state.availableImageSets.length <= 1){
       setHidden(imageToggle, true);
       setHidden(imageGroup, true);
-      if(imageShortcutBadge){
-        setHidden(imageShortcutBadge, true);
-        imageShortcutBadge.innerHTML = '';
-      }
+      applyImageShortcutBadge(false);
       return;
     }
     setHidden(imageToggle, false);
     setHidden(imageGroup, false);
-    if(imageShortcutBadge){
-      setHidden(imageShortcutBadge, false);
-      renderShortcutBadge(imageShortcutBadge, ['I'], 'image set');
-    }
+    applyImageShortcutBadge(true);
     state.availableImageSets.forEach(setKey=>{
       const btn = imageSetButtons[setKey];
       if(!btn) return;
@@ -1080,27 +1225,34 @@ function updateImageSetButtons(){
     const targetTag = (e.target && e.target.tagName || '').toLowerCase();
     if(targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select') return;
 
-    if(e.key==='ArrowLeft'){ e.preventDefault(); btnPrev.click(); return; }
-    if(e.key==='ArrowRight'){ e.preventDefault(); btnNext.click(); return; }
-    const rawKey = e.key;
-    const key = rawKey.toLowerCase();
+    const normalizedKey = normalizeHotkeyKey(e.key);
 
-    if(rawKey === 'o'){
+    if(matchHotkey('prevPage', e.key)){
+      e.preventDefault();
+      btnPrev.click();
+      return;
+    }
+    if(matchHotkey('nextPage', e.key)){
+      e.preventDefault();
+      btnNext.click();
+      return;
+    }
+    if(matchHotkey('increaseFont', e.key)){
       e.preventDefault();
       adjustFontSize(1);
       return;
     }
-    if(rawKey === 'l'){
+    if(matchHotkey('decreaseFont', e.key)){
       e.preventDefault();
       adjustFontSize(-1);
       return;
     }
-    if(rawKey === 'p'){
+    if(matchHotkey('resetFont', e.key)){
       e.preventDefault();
       resetFontSize();
       return;
     }
-    if(key === 'i'){
+    if(matchHotkey('cycleImageSet', e.key)){
       if(state.availableImageSets.length>1){
         e.preventDefault();
         cycleImageSet(1);
@@ -1108,25 +1260,25 @@ function updateImageSetButtons(){
       return;
     }
 
-    const langHotkey = languages.find(l => (l.hotkey || '').toLowerCase() === key);
+    const normalizedLower = normalizedKey.toLowerCase();
+    const langHotkey = languages.find(lang => {
+      if(!lang.hotkey) return false;
+      const values = Array.isArray(lang.hotkey) ? lang.hotkey : [lang.hotkey];
+      return values.some(value => normalizeHotkeyKey(value).toLowerCase() === normalizedLower);
+    });
     if(langHotkey && state.availableLangs.includes(langHotkey.code)){
       state.lang = langHotkey.code;
       render();
       return;
     }
-    // quick jump digits 1..9 roughly proportional
-    if(key === '0'){
-      e.preventDefault();
-      if(state.pages.length){
-        state.pageIndex = 0;
+    if(matchHotkey('jumpDigits', e.key)){
+      if(normalizedKey && /^\d$/.test(normalizedKey) && state.pages.length){
+        const digit = Number(normalizedKey);
+        const idx = Math.round((digit/9)*(state.pages.length-1));
+        state.pageIndex = idx;
         render();
       }
       return;
-    }
-    if(/^[1-9]$/.test(e.key)){
-      const k = Number(e.key);
-      const idx = Math.round((k/9)*(state.pages.length-1));
-      state.pageIndex = idx; render();
     }
   });
 
