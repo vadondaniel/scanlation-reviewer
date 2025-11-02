@@ -27,7 +27,7 @@ Place the viewer (this repo) anywhere, then organise each chapter folder like:
 Chapter 04/
 |-- en.md          # English script (optional)
 |-- jp.md          # Japanese reference (optional)
-|-- hu.md          # Hungarian translation (optional, language selection can be [extended](#customisation-notes))
+|-- hu.md          # Hungarian translation (optional, language options can be configured)
 |-- 1.jpg          # Page images (any .jpg/.jpeg/.png/.webp)
 |-- 2.jpg
 |-- cleaned/       # Optional alternative image set
