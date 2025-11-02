@@ -11,6 +11,10 @@ A single-page, local-first reader for manga or comic translation work. Drop in a
 - Auto/light/dark themes, adjustable text size, and keyboard shortcuts for fast navigation.
 - Parses simple Markdown for per-page notes (headings, lists, bold, italic, code, links).
 
+## Preview
+
+![Screenshot of the Scanlation Reviewer interface](docs/preview.png)
+
 ## Getting Started
 
 1. Open `index.html` in a desktop browser such as Chrome, Edge, or Firefox.
