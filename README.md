@@ -1,8 +1,9 @@
-# Manga Chapter Viewer
+# Scanlation Reviewer
 
 A single-page, local-first reader for manga or comic translation work. Drop in a chapter folder and the app pairs page images with multilingual scripts so you can proof read translations alongside the artwork.
 
 ## Features
+
 - Works entirely offline in the browser - no build step or server needed.
 - Reads `en.md`, `jp.md`, `hu.md` (or any subset) and adds quick language toggles.
 - Supports multiple image variants (for example raw, cleaned, typeset) via subfolders.
@@ -11,6 +12,7 @@ A single-page, local-first reader for manga or comic translation work. Drop in a
 - Parses simple Markdown for per-page notes (headings, lists, bold, italic, code, links).
 
 ## Getting Started
+
 1. Open `index.html` in a desktop browser such as Chrome, Edge, or Firefox.
 2. Click the chapter title in the top-left corner and choose a chapter folder from your drive.
 3. Use the navigation buttons or arrow keys to flip pages. Toggle languages or image sets from the header controls.
@@ -23,9 +25,9 @@ Place the viewer (this repo) anywhere, then organise each chapter folder like:
 
 ````text
 Chapter 04/
-|-- en.md          # English script
+|-- en.md          # English script (optional)
 |-- jp.md          # Japanese reference (optional)
-|-- hu.md          # Hungarian translation (optional)
+|-- hu.md          # Hungarian translation (optional, language selection can be [extended](#customisation-notes))
 |-- 1.jpg          # Page images (any .jpg/.jpeg/.png/.webp)
 |-- 2.jpg
 |-- cleaned/       # Optional alternative image set
@@ -41,7 +43,7 @@ Chapter 04/
 Each language file is a lightweight Markdown document:
 
 ````markdown
-# Chapter 04 - The Abandoned Elf
+# Chapter 04 - The Best Story Ever
 
 ## Page 1
 Dialogue line one.
@@ -54,12 +56,14 @@ Second page text here.
 ````
 
 Rules:
+
 - The first `# Heading` is used as the chapter title.
-- Start every page section with a `## Page N` heading. `## N` or `## N. oldal` also work.
+- Start every page section with a `## Page N` heading. `## N` or `## N. oldal` also work. ([extendible](#customisation-notes))
 - Content under a page heading is rendered as HTML and paired with that page image.
 - Blank lines split paragraphs; two spaces before a newline insert a `<br>`.
 
 ## Keyboard Shortcuts
+
 - Left Arrow / Right Arrow: Previous or next page.
 - 0-9: Jump to a proportional position in the chapter.
 - E, J, H: Switch language (when available).
@@ -68,6 +72,7 @@ Rules:
 - P: Reset the note font size.
 
 ## Customisation Notes
+
 - Theme mode cycles through auto -> light -> dark; auto follows your operating system preference.
 - Drag the vertical bar between the image and text panes to resize them.
 - Viewer width and font size preferences persist for the active session. Theme mode is stored in `localStorage`.
