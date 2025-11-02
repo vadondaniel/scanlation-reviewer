@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Local Manga/Comic Reader</title>
+  <style>
+    :root{
+      --bg:#0f1115; --panel:#151822; --ink:#e6e7ea; --muted:#9aa3b2; --accent:#7aa2f7; --accent-2:#2dd4bf;
+      --btn:#1b2030; --btn-hover:#232a3d; --border:#22283a; --divider:#1f2535;
+      --code-bg:#111827; --code-border:#22283a;
+      --viewer-percent:60%; --md-font-size:16px;
+    }
+    :root[data-theme="light"]{
+      --bg:#f4f6fa; --panel:#ffffff; --ink:#1c2333; --muted:#5d6675; --accent:#3b82f6; --accent-2:#0ea5e9;
+      --btn:#e6e8ef; --btn-hover:#d5d9e6; --border:#c9cedd; --divider:#d2d6e3;
+      --code-bg:#eef2ff; --code-border:#c9cedd;
+    }
+    html,body{height:100%;}
+    body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Arial, "Apple Color Emoji","Segoe UI Emoji";display:flex;flex-direction:column;min-height:100vh;}
+    header{display:flex;gap:.75rem;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--border);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(0,0,0,0));}
+    .left, .right{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .brand{font-weight:700;letter-spacing:.3px}
+    .brand-trigger{background:none;border:none;color:var(--ink);font:inherit;font-weight:700;cursor:pointer;padding:0;display:inline-flex;align-items:center;gap:.4rem;text-align:left;}
+    .brand-trigger:hover{text-decoration:underline;}
+    .brand-trigger:focus-visible{outline:2px solid var(--accent);outline-offset:3px;}
+    .muted{color:var(--muted)}
+    .bar{display:flex;gap:.5rem;flex-wrap:wrap}
+    button, .btn{appearance:none;border:1px solid var(--border);background:var(--btn);color:var(--ink);padding:.55rem .8rem;border-radius:10px;cursor:pointer}
+    button:hover,.btn:hover{background:var(--btn-hover)}
+    button[disabled]{opacity:.5;pointer-events:none}
+    input[type="file"]{display:none}
+    label.btn{display:inline-flex;align-items:center;gap:.5rem}
+    select, input[type="number"]{background:var(--btn);border:1px solid var(--border);color:var(--ink);border-radius:10px;padding:.5rem .6rem}
+    input[type="range"]{accent-color:var(--accent);width:110px;background:transparent}
+
+    .control-group{display:flex;align-items:center;gap:.35rem}
+    .badge.small{font-size:11px;padding:.15rem .4rem}
+
+    main{
+      display:grid;
+      grid-template-columns:minmax(0,var(--viewer-percent)) 12px minmax(0,calc(100% - var(--viewer-percent)));
+      grid-template-rows:1fr;
+      gap:0;
+      flex:1;
+      min-height:0;
+      padding:10px;
+      box-sizing:border-box;
+    }
+    .viewer{grid-column:1;min-height:0; overflow:auto; display:flex; align-items:center; justify-content:center; background:var(--panel)}
+    .viewer img{max-width:100%; max-height:100%; object-fit:contain; display:block}
+    .divider{grid-column:2;cursor:col-resize;background:var(--bg);position:relative;touch-action:none;}
+    .divider::after{
+      content:'';
+      position:absolute;
+      top:50%;
+      left:50%;
+      transform:translate(-50%,-50%);
+      width:4px;
+      height:48px;
+      border-radius:999px;
+      background:var(--divider);
+      box-shadow:0 0 0 1px rgba(0,0,0,0.25);
+    }
+    .divider.active::after,
+    .divider:hover::after{
+      background:var(--accent);
+      box-shadow:0 0 0 1px rgba(0,0,0,0.4);
+    }
+    .panel{grid-column:3;min-height:0; background:var(--panel); border-left:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden}
+    .panel-inner{padding:18px 16px; flex:1 1 auto; min-height:0; overflow:auto; display:flex; flex-direction:column; gap:12px}
+    .meta-info{display:flex;flex-wrap:wrap;gap:.4rem;margin:0;padding:0}
+    .panel-head{display:flex;flex-direction:column;gap:.6rem}
+    .panel-nav{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-top:auto;padding-top:12px;border-top:1px solid var(--border);}
+    .panel-nav .nav-buttons{display:flex;gap:.5rem;align-items:center;}
+    .panel-nav .pagejump{margin-left:auto;display:flex;align-items:center;gap:.4rem;}
+    .footer-shortcuts{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;}
+    .meta-badge{display:inline-flex;align-items:center;gap:.3rem;padding:.25rem .6rem;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted);background:rgba(0,0,0,0.15)}
+    :root[data-theme="light"] .meta-badge{background:rgba(0,0,0,0.05)}
+    .status-badge{display:inline-flex;align-items:center;gap:.35rem;padding:.3rem .7rem;border:1px solid var(--border);border-radius:999px;font-size:12px;color:var(--muted);background:rgba(0,0,0,0.15);font-weight:600}
+    :root[data-theme="light"] .status-badge{background:rgba(0,0,0,0.05)}
+    .footer{padding:12px 16px;border-top:1px solid var(--border);display:flex;align-items:center;gap:.75rem;flex-wrap:wrap; background:rgba(0,0,0,0.05)}
+    .footer-control{margin-left:auto;display:flex;align-items:center;gap:.5rem;}
+    .footer-control .control-label{font-size:12px;color:var(--muted);}
+    @media (max-width: 980px){
+      main{
+        grid-template-columns:1fr;
+        grid-template-rows:auto 1fr;
+        row-gap:10px;
+      }
+      .divider{display:none;}
+      .viewer{grid-column:1;grid-row:1;}
+      .panel{grid-column:1;grid-row:2;}
+      .panel-inner{padding:18px 16px}
+    }
+
+    .hstack{display:flex;gap:.5rem;align-items:center}
+    .spacer{flex:1}
+    .badge{font-size:12px;color:var(--muted);border:1px dashed var(--border);padding:.2rem .45rem;border-radius:6px;display:inline-flex;align-items:center;gap:.35rem}
+    .badge .keycap{display:inline-flex;align-items:center;justify-content:center;min-width:1.6em;height:1.6em;padding:0 .45em;border:1px solid var(--border);border-radius:4px;background:rgba(0,0,0,0.15);color:var(--ink);font-weight:600;font-size:11px;letter-spacing:.02em;text-transform:uppercase;box-shadow:inset 0 -1px 0 rgba(0,0,0,0.2);}
+    :root[data-theme="light"] .badge .keycap{background:rgba(255,255,255,0.7);box-shadow:inset 0 -1px 0 rgba(0,0,0,0.08);}
+    .badge .keycap + .keycap{margin-left:.25rem}
+    .badge .shortcut-label{white-space:nowrap}
+    .lang-toggle button,
+    .image-toggle button{border-radius:8px}
+    .lang-toggle button.active,
+    .image-toggle button.active{outline:2px solid var(--accent);}
+    .header-controls{display:flex;align-items:flex-end;gap:1rem;flex-wrap:wrap;margin-right:auto}
+    .hidden{display:none!important}
+    .toggle-group{display:flex;flex-direction:column;gap:.35rem;min-width:0}
+    .toggle-group .hstack{display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+    .toggle-group .btn,
+    .toggle-group .lang-toggle button,
+    .toggle-group .image-toggle button{min-width:44px}
+    .group-label{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+    .utility-group .btn{align-self:flex-start}
+
+    .title{font-weight:700;font-size:18px;margin:0 0 6px}
+    .sub{color:var(--muted);margin:0 0 12px}
+
+    .md{font-size:var(--md-font-size);line-height:1.6;}
+    .panel-inner .md{flex:1 1 auto;min-height:0;overflow:auto;}
+    .md h1,.md h2,.md h3{margin:1em 0 .3em}
+    .md p{margin:.5em 0}
+    .md ul{margin:.5em 0 .5em 1.2em}
+    .md li{margin:.2em 0}
+    .md em{font-style:italic}
+    .md strong{font-weight:700}
+    .md code{background:var(--code-bg);border:1px solid var(--code-border);padding:.1rem .25rem;border-radius:6px}
+    :root[data-theme="light"] .footer{background:rgba(0,0,0,0.03)}
+
+    .pagejump{display:flex;align-items:center;gap:.4rem}
+    .sr-only{position:absolute;left:-10000px}
+  </style>
+</head>
+<body>
+<header>
+  <div class="left">
+    <button class="brand brand-trigger" id="chapterTitle" type="button">Local Manga/Comic Reader</button>
+    <div class="status-badge" id="status">Click title to choose folder</div>
+  </div>
+  <div class="right bar">
+    <label class="sr-only" for="dir">Select chapter folder</label>
+    <input id="dir" type="file" webkitdirectory directory multiple />
+
+    <div class="header-controls">
+      <div class="toggle-group hidden" id="langGroup">
+        <span class="group-label">Language</span>
+        <div class="lang-toggle hstack" role="tablist" aria-label="Language">
+          <button id="btnEN" data-lang="en" class="active" aria-selected="true" role="tab">EN</button>
+          <button id="btnJP" data-lang="jp" aria-selected="false" role="tab">JP</button>
+          <button id="btnHU" data-lang="hu" aria-selected="false" role="tab">HU</button>
+        </div>
+      </div>
+      <div class="toggle-group hidden" id="imageGroup">
+        <span class="group-label">Image set</span>
+        <div class="image-toggle hstack" id="imageToggle" role="tablist" aria-label="Image set"></div>
+      </div>
+      <div class="toggle-group utility-group" id="themeGroup">
+        <span class="group-label">Theme</span>
+        <button id="themeToggle" class="btn" type="button" aria-label="Toggle theme">🌓</button>
+      </div>
+    </div>
+
+  </div>
+</header>
+
+<main>
+  <section class="viewer" aria-label="Page image">
+    <img id="pageImage" alt="Page image" />
+  </section>
+  <div id="divider" class="divider" role="separator" aria-orientation="vertical" aria-label="Resize panes"></div>
+  <aside class="panel" aria-label="Panel">
+    <div class="panel-inner">
+      <div class="panel-head">
+        <h1 class="title" id="pageTitle">Page —</h1>
+        <div id="meta" class="meta-info"></div>
+      </div>
+      <div id="md" class="md"></div>
+      <div class="panel-nav hidden">
+        <div class="nav-buttons">
+          <button id="prev">&larr; Prev</button>
+          <button id="next">Next &rarr;</button>
+        </div>
+        <div class="pagejump">
+          <label class="sr-only" for="pageSelect">Page</label>
+          <select id="pageSelect"></select>
+        </div>
+      </div>
+    </div>
+    <div class="footer">
+      <div class="footer-shortcuts hidden">
+        <span class="muted">Shortcuts:</span>
+        <span class="badge"><span class="keycap">&larr;</span><span class="keycap">&rarr;</span><span class="shortcut-label">paginate</span></span>
+        <span class="badge" id="langShortcutBadge" style="display:none;"></span>
+        <span class="badge"><span class="keycap">0-9</span><span class="shortcut-label">jump</span></span>
+        <span class="badge"><span class="keycap">O</span><span class="keycap">L</span><span class="shortcut-label">text size &plusmn;</span></span>
+        <span class="badge"><span class="keycap">P</span><span class="shortcut-label">reset text size</span></span>
+        <span class="badge" id="imageCycleShortcut" style="display:none;"></span>
+      </div>
+      <div class="footer-control hidden">
+        <label class="sr-only" for="fontRange">Adjust text size</label>
+        <span class="control-label">Text size</span>
+        <input id="fontRange" type="range" min="12" max="24" step="1" value="16" />
+        <span class="badge small" id="fontDisplay">16px</span>
+      </div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function(){
+  // --- Simple Markdown (minimal) ---
+  function escapeHtml(s){ return s.replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[m])); }
+  function mdToHtml(md){
+    // Convert basic markdown to HTML. Supports: headings ###, **bold**, *italic*, `code`, links, lists, paragraphs
+    md = md.replace(/\r\n?/g,'\n');
+    const lines = md.split('\n');
+    let html = '', inList = false;
+    function flushP(par){
+      if(par.trim()){
+        const text = inline(par.trim()).replace(/\n/g,'<br/>');
+        html += '<p>'+text+'</p>';
+      }
+    }
+    let para = '';
+    for(let i=0;i<lines.length;i++){
+      let line = lines[i];
+      if(/^\s*$/.test(line)){ flushP(para); para=''; continue; }
+      if(/^#{1,6}\s/.test(line)){
+        flushP(para); para='';
+        const level = (line.match(/^#+/)[0]||'#').length;
+        const text = line.replace(/^#{1,6}\s*/,'');
+        html += `<h${level}>${inline(text)}</h${level}>`;
+        continue;
+      }
+      if(/^\s*[-*+]\s+/.test(line)){
+        flushP(para); para='';
+        if(!inList){ html += '<ul>'; inList = true; }
+        html += `<li>${inline(line.replace(/^\s*[-*+]\s+/,''))}</li>`;
+        // peek next line
+        if(i+1>=lines.length || !/^\s*[-*+]\s+/.test(lines[i+1])){ html += '</ul>'; inList=false; }
+        continue;
+      }
+      para += (para? '\n':'') + line;
+    }
+    flushP(para);
+    return html;
+
+    function inline(t){
+      t = escapeHtml(t);
+      t = t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+      t = t.replace(/\*(.+?)\*/g,'<em>$1</em>');
+      t = t.replace(/`([^`]+?)`/g,'<code>$1</code>');
+      t = t.replace(/\[([^\]]+)\]\(([^\)]+)\)/g,'<a href="$2" target="_blank" rel="noopener noreferrer">$1<\/a>');
+      t = t.replace(/\s{2}\n/g,'<br/>');
+      return t;
+    }
+  }
+
+  const languages = [
+    { code: 'en', file: 'en.md', buttonId: 'btnEN', hotkey: 'e' },
+    { code: 'jp', file: 'jp.md', buttonId: 'btnJP', hotkey: 'j' },
+    { code: 'hu', file: 'hu.md', buttonId: 'btnHU', hotkey: 'h' }
+  ];
+
+  const normalizePageId = (raw) => {
+    if(raw === undefined || raw === null) return '';
+    const trimmed = String(raw).trim();
+    const rangeMatch = trimmed.match(/^(\d+)\s*-\s*(\d+)$/);
+    if(rangeMatch){
+      const start = Number(rangeMatch[1]);
+      const end = Number(rangeMatch[2]);
+      const [a, b] = start <= end ? [start, end] : [end, start];
+      return `${a}-${b}`;
+    }
+    const singleMatch = trimmed.match(/^(\d+)$/);
+    if(singleMatch){
+      return String(Number(singleMatch[1]));
+    }
+    return trimmed.replace(/\s+/g,' ').trim();
+  };
+
+  const pageSortKey = (id) => {
+    const match = String(id).match(/^(\d+)/);
+    return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
+  };
+
+  const comparePageIds = (a, b) => {
+    const keyA = pageSortKey(a);
+    const keyB = pageSortKey(b);
+    if(keyA !== keyB) return keyA - keyB;
+    return String(a).localeCompare(String(b), undefined, { numeric: true });
+  };
+
+  const formatPageLabel = (id) => id ? `Page ${id}` : 'Page -';
+  const localizedPageLabel = (id, lang) => {
+    if(!id) return '';
+    const value = String(id);
+    switch(lang){
+      case 'jp':
+        return `ページ ${value}`;
+      case 'hu':
+        return `${value}. oldal`;
+      default:
+        return `Page ${value}`;
+    }
+  };
+  const formatImageSetLabel = (key, source) => {
+    if(key === 'main') return 'Original';
+    const base = source || key;
+    return base.replace(/[-_]/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+  };
+  const renderShortcutBadge = (el, keys, label='') => {
+    if(!el) return;
+    const keyHtml = keys.map(k => `<span class="keycap">${escapeHtml(String(k))}</span>`).join(' ');
+    const labelHtml = label ? `<span class="shortcut-label">${escapeHtml(label)}</span>` : '';
+    el.innerHTML = labelHtml ? `${keyHtml} ${labelHtml}` : keyHtml;
+  };
+  const VIEWER_MIN = 30;
+  const VIEWER_MAX = 80;
+  const DEFAULT_FONT_SIZE = 16;
+
+  // --- App State ---
+  const state = {
+    files: [],
+    lang: 'en',
+    pages: [], // sorted IDs
+    pageIndex: 0,
+    texts: Object.fromEntries(languages.map(l => [l.code, {}])), // {pageId: html}
+    availableLangs: [],
+    titles: Object.fromEntries(languages.map(l => [l.code, ''])),
+    viewerWidth: 60,
+    fontSize: DEFAULT_FONT_SIZE,
+    theme: 'dark',
+    themeMode: 'auto',
+    imageSets: {},
+    imageSetLabels: {},
+    availableImageSets: [],
+    imageSet: 'main'
+  };
+
+  // UI elements
+  const defaultTitle = 'Local Manga/Comic Reader';
+  const dirInput = document.getElementById('dir');
+  const pageImg = document.getElementById('pageImage');
+  const mdEl = document.getElementById('md');
+  const statusEl = document.getElementById('status');
+  const chapterTitleEl = document.getElementById('chapterTitle');
+  const pageTitle = document.getElementById('pageTitle');
+  const metaEl = document.getElementById('meta');
+  const selectEl = document.getElementById('pageSelect');
+  const langButtons = Object.fromEntries(languages.map(l => [l.code, document.getElementById(l.buttonId)]));
+  const langShortcutBadge = document.getElementById('langShortcutBadge');
+  const langGroup = document.getElementById('langGroup');
+  const themeToggle = document.getElementById('themeToggle');
+  const themeGroup = document.getElementById('themeGroup');
+  const imageToggle = document.getElementById('imageToggle');
+  const imageGroup = document.getElementById('imageGroup');
+  const imageShortcutBadge = document.getElementById('imageCycleShortcut');
+  const setHidden = (el, hidden) => { if(el) el.classList.toggle('hidden', !!hidden); };
+  let imageSetButtons = {};
+  setHidden(imageToggle, true);
+  setHidden(imageGroup, true);
+  setHidden(imageShortcutBadge, true);
+  const fontRange = document.getElementById('fontRange');
+  const fontDisplay = document.getElementById('fontDisplay');
+  const footerShortcuts = document.querySelector('.footer-shortcuts');
+  const footerControl = document.querySelector('.footer-control');
+  setHidden(footerShortcuts, true);
+  setHidden(footerControl, true);
+  const btnPrev = document.getElementById('prev');
+  const btnNext = document.getElementById('next');
+  const panelNav = document.querySelector('.panel-nav');
+  setHidden(panelNav, true);
+  const divider = document.getElementById('divider');
+  const mainEl = document.querySelector('main');
+  const rootStyle = document.documentElement.style;
+
+  // Helpers
+  const byName = name => Array.from(state.files).find(f => f.name.toLowerCase() === name.toLowerCase());
+  const getText = file => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result)); r.onerror=rej; r.readAsText(file); });
+  const getURL = file => URL.createObjectURL(file);
+  const sleep = ms => new Promise(r=>setTimeout(r,ms));
+  const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+  const themeStorageKey = 'manga-viewer-theme-mode';
+  const themeModes = ['auto','light','dark'];
+  const themeIcons = { auto:'🌓', light:'🌞', dark:'🌙' };
+  const colorSchemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+  let autoThemeTimer = null;
+
+  function computeAutoTheme(){
+    if(colorSchemeQuery){
+      return colorSchemeQuery.matches ? 'light' : 'dark';
+    }
+    const hour = new Date().getHours();
+    return hour >= 7 && hour < 19 ? 'light' : 'dark';
+  }
+
+  function setEffectiveTheme(theme){
+    const next = theme === 'light' ? 'light' : 'dark';
+    state.theme = next;
+    document.documentElement.setAttribute('data-theme', next);
+  }
+
+  function updateThemeButton(){
+    if(!themeToggle) return;
+    const icon = themeIcons[state.themeMode] || themeIcons.auto;
+    const nextMode = themeModes[(themeModes.indexOf(state.themeMode)+1)%themeModes.length];
+    const labelCurrent = state.themeMode === 'auto'
+      ? `Auto (${state.theme === 'light' ? 'light' : 'dark'})`
+      : state.themeMode === 'light' ? 'Light' : 'Dark';
+    const labelNext = nextMode === 'auto' ? 'auto' : nextMode === 'light' ? 'light' : 'dark';
+    const message = `Theme: ${labelCurrent}. Click to switch to ${labelNext}.`;
+    themeToggle.textContent = icon;
+    themeToggle.setAttribute('aria-label', message);
+    themeToggle.setAttribute('title', message);
+  }
+
+  function scheduleAutoThemeRefresh(){
+    if(autoThemeTimer){ clearTimeout(autoThemeTimer); autoThemeTimer = null; }
+    if(state.themeMode !== 'auto') return;
+    const now = new Date();
+    let minutesAhead = 15 - (now.getMinutes() % 15);
+    if(minutesAhead === 0) minutesAhead = 15;
+    const secondsRemaining = minutesAhead * 60 - now.getSeconds();
+    const ms = Math.max(secondsRemaining * 1000, 60 * 1000);
+    autoThemeTimer = setTimeout(()=>{ applyThemeMode('auto', { persist:false }); }, ms);
+  }
+
+  function applyThemeMode(mode, options){
+    const { persist = true } = options || {};
+    const normalized = themeModes.includes(mode) ? mode : 'auto';
+    state.themeMode = normalized;
+    const effective = normalized === 'auto' ? computeAutoTheme() : normalized;
+    setEffectiveTheme(effective);
+    updateThemeButton();
+    if(persist){
+      try{ localStorage.setItem(themeStorageKey, normalized); }catch(_e){}
+    }
+    scheduleAutoThemeRefresh();
+  }
+
+  function cycleThemeMode(){
+    const idx = themeModes.indexOf(state.themeMode);
+    const nextMode = themeModes[(idx + 1) % themeModes.length];
+    applyThemeMode(nextMode);
+  }
+
+  function applyViewerWidth(width){
+    const numeric = Number(width);
+    const clamped = clamp(Number.isFinite(numeric) ? numeric : VIEWER_MIN, VIEWER_MIN, VIEWER_MAX);
+    state.viewerWidth = clamped;
+    rootStyle.setProperty('--viewer-percent', `${clamped}%`);
+  }
+
+  const storedThemeMode = (()=>{ try{ return localStorage.getItem(themeStorageKey) || ''; }catch(_e){ return ''; }})();
+  const initialMode = themeModes.includes(storedThemeMode) ? storedThemeMode : 'auto';
+  applyThemeMode(initialMode, { persist:false });
+
+  if(themeToggle){
+    themeToggle.addEventListener('click', cycleThemeMode);
+  }
+
+  if(colorSchemeQuery){
+    const handleSchemeChange = () => {
+      if(state.themeMode === 'auto'){
+        applyThemeMode('auto', { persist:false });
+      }
+    };
+    if('addEventListener' in colorSchemeQuery){
+      colorSchemeQuery.addEventListener('change', handleSchemeChange);
+    }else if('addListener' in colorSchemeQuery){
+      colorSchemeQuery.addListener(handleSchemeChange);
+    }
+  }
+
+  function applyFontSize(size){
+    const min = Number(fontRange?.min || 12);
+    const max = Number(fontRange?.max || 24);
+    const parsed = Number(size);
+    const proposed = Number.isFinite(parsed) ? parsed : DEFAULT_FONT_SIZE;
+    const clamped = Math.round(clamp(proposed, min, max));
+    state.fontSize = clamped;
+    rootStyle.setProperty('--md-font-size', `${clamped}px`);
+    if(fontRange && fontRange.value !== String(clamped)){
+      fontRange.value = String(clamped);
+    }
+    if(fontDisplay){
+      fontDisplay.textContent = `${clamped}px`;
+    }
+  }
+
+  applyViewerWidth(state.viewerWidth);
+  applyFontSize(state.fontSize);
+
+  if(fontRange){
+    fontRange.addEventListener('input', (e)=>{
+      applyFontSize(e.target.value);
+    });
+  }
+
+  function adjustFontSize(delta){
+    applyFontSize(state.fontSize + delta);
+  }
+
+  function resetFontSize(){
+    applyFontSize(DEFAULT_FONT_SIZE);
+  }
+
+  // Pane resize via divider drag
+  let resizePointerId = null;
+  let resizeStart = { x: 0, percent: state.viewerWidth, width: 0 };
+  const stopResize = () => {
+    if(resizePointerId === null) return;
+    if(divider){
+      try{ divider.releasePointerCapture(resizePointerId); }catch(_e){}
+      divider.classList.remove('active');
+    }
+    resizePointerId = null;
+  };
+
+  if(divider && mainEl){
+    divider.addEventListener('pointerdown', (ev)=>{
+      if(ev.pointerType === 'mouse' && ev.button !== 0) return;
+      ev.preventDefault();
+      resizePointerId = ev.pointerId;
+      const rect = mainEl.getBoundingClientRect();
+      resizeStart = {
+        x: ev.clientX,
+        percent: state.viewerWidth,
+        width: rect.width
+      };
+      divider.classList.add('active');
+      divider.setPointerCapture(ev.pointerId);
+    });
+
+    divider.addEventListener('pointermove', (ev)=>{
+      if(resizePointerId === null || ev.pointerId !== resizePointerId) return;
+      const containerWidth = resizeStart.width || mainEl.getBoundingClientRect().width || 0;
+      if(containerWidth <= 0) return;
+      const delta = ev.clientX - resizeStart.x;
+      const deltaPercent = (delta / containerWidth) * 100;
+      applyViewerWidth(resizeStart.percent + deltaPercent);
+    });
+
+    const finish = (ev)=>{
+      if(resizePointerId === null || ev.pointerId !== resizePointerId) return;
+      stopResize();
+    };
+
+    divider.addEventListener('pointerup', finish);
+    divider.addEventListener('pointercancel', finish);
+  }
+
+  window.addEventListener('pointerup', stopResize);
+  window.addEventListener('pointercancel', stopResize);
+  window.addEventListener('blur', stopResize);
+
+  dirInput.addEventListener('change', async (ev)=>{
+    state.files = ev.target.files || [];
+    if(!state.files.length){ status('No files found'); return; }
+    status('Reading folder...');
+    await loadAll();
+  });
+
+  const triggerFolderSelect = () => dirInput.click();
+  chapterTitleEl.addEventListener('click', triggerFolderSelect);
+  function status(s){ statusEl.textContent = s; }
+
+  async function loadAll(){
+    const previousImageSet = state.imageSet;
+    // reset
+    state.texts = Object.fromEntries(languages.map(l => [l.code, {}]));
+    state.pages = [];
+    state.availableLangs = [];
+    state.titles = Object.fromEntries(languages.map(l => [l.code, '']));
+    state.imageSets = {};
+    state.imageSetLabels = {};
+    state.availableImageSets = [];
+
+    const available = [];
+
+    for(const lang of languages){
+      const file = byName(lang.file);
+      const btn = langButtons[lang.code];
+      const hasFile = !!file;
+      if(btn){
+        btn.style.display = hasFile ? '' : 'none';
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected','false');
+      }
+      if(hasFile){
+        const txt = await getText(file);
+        const parsed = parseMarkdown(txt);
+        state.texts[lang.code] = parsed.pages;
+        state.titles[lang.code] = parsed.title;
+        available.push(lang.code);
+      }
+    }
+
+    state.availableLangs = available;
+
+    if(!state.availableLangs.includes(state.lang)){
+      state.lang = state.availableLangs[0] || languages[0].code;
+    }
+
+    const imgPattern = /^(\d+(?:-\d+)?)\.(jpe?g|png|webp)$/i;
+    const filesArray = Array.from(state.files);
+    const samplePath = filesArray.length ? filesArray[0].webkitRelativePath : '';
+    const rootParts = samplePath ? samplePath.split(/[\\/]/) : [];
+    const rootFolder = rootParts.length > 1 ? rootParts[0] : '';
+
+    const ensureImageSet = (key, label) => {
+      if(!state.imageSets[key]){
+        state.imageSets[key] = {};
+      }
+      if(!state.imageSetLabels[key]){
+        state.imageSetLabels[key] = formatImageSetLabel(key, label);
+      }
+    };
+
+    ensureImageSet('main', 'Original');
+
+    filesArray.forEach(file => {
+      if(!imgPattern.test(file.name)) return;
+      const relPath = file.webkitRelativePath || file.name;
+      const parts = relPath.split(/[\\/]/);
+      if(rootFolder && parts[0] === rootFolder){ parts.shift(); }
+      let variantLabel = 'Original';
+      let variantKey = 'main';
+      if(parts.length > 1){
+        variantLabel = parts[0];
+        variantKey = variantLabel.toLowerCase();
+      }
+      ensureImageSet(variantKey, variantLabel);
+      const match = file.name.match(imgPattern);
+      if(!match) return;
+      const pageId = normalizePageId(match[1]);
+      state.imageSets[variantKey][pageId] = { url: getURL(file), name: file.name };
+    });
+
+    if(state.imageSets.main && !Object.keys(state.imageSets.main).length){
+      const otherKeys = Object.keys(state.imageSets).filter(k => k!=='main');
+      if(otherKeys.length){
+        delete state.imageSets.main;
+        delete state.imageSetLabels.main;
+      }
+    }
+
+    state.availableImageSets = Object.keys(state.imageSets).sort((a,b)=>{
+      if(a==='main') return -1;
+      if(b==='main') return 1;
+      const labelA = state.imageSetLabels[a] || a;
+      const labelB = state.imageSetLabels[b] || b;
+      return labelA.localeCompare(labelB, undefined, { sensitivity:'base' });
+    });
+
+    if(!state.availableImageSets.length){
+      state.availableImageSets = ['main'];
+      ensureImageSet('main','Original');
+    }
+
+    state.imageSet = state.availableImageSets.includes(previousImageSet) ? previousImageSet
+      : (state.availableImageSets.includes('main') ? 'main' : state.availableImageSets[0]);
+
+    const pageSet = new Set();
+    state.availableLangs.forEach(code => {
+      Object.keys(state.texts[code]).forEach(id => pageSet.add(id));
+    });
+    state.availableImageSets.forEach(setKey => {
+      Object.keys(state.imageSets[setKey] || {}).forEach(id => pageSet.add(id));
+    });
+
+    state.pages = Array.from(pageSet).sort(comparePageIds);
+    state.pageIndex = 0;
+
+    if(!state.pages.length){
+      updateLangButtons();
+      rebuildImageToggle();
+      setHidden(panelNav, true);
+      setHidden(footerShortcuts, true);
+      setHidden(footerControl, true);
+      if(chapterTitleEl){
+        chapterTitleEl.textContent = defaultTitle;
+        document.title = defaultTitle;
+      }
+      status('No pages detected. Try another folder.');
+      return;
+    }
+
+    buildPageSelect();
+    updateLangButtons();
+    rebuildImageToggle();
+
+    if(state.availableLangs.length){
+      status(`Loaded ${state.pages.length} page(s)`);
+    }else{
+      status(`Loaded ${state.pages.length} page(s) (no translations found)`);
+    }
+    render();
+  }
+
+  function parseMarkdown(md){
+    // Extract first # title and split by headings like: ## Page 12 or ## 12. oldal
+    md = md.replace(/\r\n?/g,'\n');
+    const lines = md.split('\n');
+    const pages = {};
+    let currentId = null;
+    let buf = [];
+    let title = '';
+    const pageHeadingPattern = /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i;
+    const flush = () => {
+      if(currentId!==null){
+        const raw = buf.join('\n').trim();
+        pages[currentId] = raw ? mdToHtml(raw) : '';
+        buf = [];
+      }
+    };
+    for(const raw of lines){
+      if(!title){
+        const titleMatch = raw.match(/^\s*#\s+(.+?)\s*$/);
+        if(titleMatch){
+          title = titleMatch[1].trim();
+          continue;
+        }
+      }
+      const m = raw.match(pageHeadingPattern);
+      if(m){
+        flush();
+        const id = normalizePageId(m[1]);
+        currentId = id || null;
+        continue;
+      }
+      if(currentId!==null){
+        buf.push(raw);
+      }
+    }
+    flush();
+    return { title, pages };
+  }
+
+  function buildPageSelect(){
+    selectEl.innerHTML = '';
+    for(const pageId of state.pages){
+      const opt = document.createElement('option');
+      opt.value = String(pageId);
+      opt.textContent = formatPageLabel(pageId);
+      selectEl.appendChild(opt);
+    }
+    selectEl.value = state.pages[state.pageIndex] || '';
+    selectEl.onchange = ()=>{
+      const id = selectEl.value;
+      const idx = state.pages.indexOf(id);
+      if(idx>=0){ state.pageIndex = idx; render(); }
+    };
+  }
+
+function updateLangButtons(){
+    let visibleCount = 0;
+    languages.forEach(({code})=>{
+      const btn = langButtons[code];
+      if(!btn) return;
+      const isAvailable = state.availableLangs.includes(code);
+      btn.style.display = isAvailable ? '' : 'none';
+      if(isAvailable){
+        visibleCount++;
+        const isActive = state.lang === code;
+        btn.classList.toggle('active', isActive);
+        btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      }else{
+        btn.classList.remove('active');
+        btn.setAttribute('aria-selected','false');
+      }
+    });
+    setHidden(langGroup, visibleCount <= 1);
+    if(langShortcutBadge){
+      if(visibleCount <= 1){
+        setHidden(langShortcutBadge, true);
+        langShortcutBadge.innerHTML = '';
+      }else{
+        setHidden(langShortcutBadge, false);
+        const hotkeys = state.availableLangs.map(code => {
+          const entry = languages.find(l => l.code === code);
+          return entry ? entry.hotkey.toUpperCase() : code.toUpperCase();
+        });
+        renderShortcutBadge(langShortcutBadge, hotkeys, 'toggle language');
+      }
+    }
+  }
+
+  function rebuildImageToggle(){
+    if(!imageToggle) return;
+    imageToggle.innerHTML = '';
+    imageSetButtons = {};
+    if(state.availableImageSets.length <= 1){
+      setHidden(imageToggle, true);
+      setHidden(imageGroup, true);
+      if(imageShortcutBadge){
+        setHidden(imageShortcutBadge, true);
+        imageShortcutBadge.innerHTML = '';
+      }
+      return;
+    }
+    setHidden(imageToggle, false);
+    setHidden(imageGroup, false);
+    if(imageShortcutBadge){
+      setHidden(imageShortcutBadge, false);
+      renderShortcutBadge(imageShortcutBadge, ['I'], 'image set');
+    }
+    state.availableImageSets.forEach(setKey=>{
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.set = setKey;
+      btn.textContent = state.imageSetLabels[setKey] || formatImageSetLabel(setKey);
+      btn.role = 'tab';
+      const isActive = state.imageSet === setKey;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+      btn.addEventListener('click', ()=>{
+        if(state.imageSet === setKey) return;
+        state.imageSet = setKey;
+        render();
+      });
+      imageToggle.appendChild(btn);
+      imageSetButtons[setKey] = btn;
+    });
+  }
+
+function updateImageSetButtons(){
+    if(!imageToggle) return;
+    if(state.availableImageSets.length <= 1){
+      setHidden(imageToggle, true);
+      setHidden(imageGroup, true);
+      if(imageShortcutBadge){
+        setHidden(imageShortcutBadge, true);
+        imageShortcutBadge.innerHTML = '';
+      }
+      return;
+    }
+    setHidden(imageToggle, false);
+    setHidden(imageGroup, false);
+    if(imageShortcutBadge){
+      setHidden(imageShortcutBadge, false);
+      renderShortcutBadge(imageShortcutBadge, ['I'], 'image set');
+    }
+    state.availableImageSets.forEach(setKey=>{
+      const btn = imageSetButtons[setKey];
+      if(!btn) return;
+      const isActive = state.imageSet === setKey;
+      btn.classList.toggle('active', isActive);
+      btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+  }
+
+  function getImageForPage(pageId){
+    const priority = [state.imageSet, ...state.availableImageSets.filter(k => k !== state.imageSet)];
+    for(const key of priority){
+      const set = state.imageSets[key];
+      if(set && set[pageId]){
+        const entry = set[pageId];
+        if(entry && typeof entry === 'object'){
+          return { url: entry.url || '', name: entry.name || '', key };
+        }
+        return { url: entry || '', name: '', key };
+      }
+    }
+    return { url:'', name:'', key:null };
+  }
+
+  function cycleImageSet(direction){
+    if(state.availableImageSets.length <= 1) return;
+    const idx = state.availableImageSets.indexOf(state.imageSet);
+    const count = state.availableImageSets.length;
+    const nextIdx = (idx + direction + count) % count;
+    state.imageSet = state.availableImageSets[nextIdx];
+    render();
+  }
+
+  function render(){
+    setHidden(panelNav, !state.pages.length);
+    setHidden(footerShortcuts, !state.pages.length);
+    setHidden(footerControl, !state.pages.length);
+    if(!state.pages.length) return;
+    updateLangButtons();
+    updateImageSetButtons();
+    const pageId = state.pages[state.pageIndex];
+    const titleFallbacks = [state.lang, ...state.availableLangs];
+    const currentTitle = titleFallbacks.map(code => state.titles[code]).find(t => t) || '';
+    if(chapterTitleEl){
+      chapterTitleEl.textContent = currentTitle || defaultTitle;
+      document.title = currentTitle || defaultTitle;
+    }
+    const localizedLabel = localizedPageLabel(pageId, state.lang) || formatPageLabel(pageId);
+    pageTitle.textContent = localizedLabel;
+    selectEl.value = String(pageId);
+
+    // image
+    const imageInfo = getImageForPage(pageId);
+    const url = imageInfo.url;
+    pageImg.src = url || '';
+    pageImg.alt = url ? localizedLabel : 'Image not found';
+
+    // text
+    const lang = state.lang;
+    const textsForLang = state.texts[lang] || {};
+    const html = textsForLang[pageId] || '<p class="muted">(No text for this page in this language)</p>';
+    mdEl.innerHTML = html;
+
+    // meta
+    const haveImg = !!url;
+    const imageLabel = imageInfo.key ? (state.imageSetLabels[imageInfo.key] || formatImageSetLabel(imageInfo.key)) : 'none';
+    const fallbackNote = imageInfo.key && imageInfo.key !== state.imageSet ? ' (fallback)' : '';
+    const metaBadges = [];
+    const fileLabel = imageInfo.name ? `File: ${imageInfo.name}` : 'File: —';
+    metaBadges.push(formatPageLabel(pageId));
+    metaBadges.push(fileLabel);
+    metaBadges.push(haveImg ? `Image: ${imageLabel}${fallbackNote}` : 'Image: missing');
+    if(state.availableLangs.length){
+      state.availableLangs.forEach(code => {
+        const hasText = !!(state.texts[code] && state.texts[code][pageId]);
+        const status = hasText ? '✓' : '—';
+        metaBadges.push(`${code.toUpperCase()}: ${status}`);
+      });
+    }else{
+      metaBadges.push('No text');
+    }
+    metaEl.innerHTML = metaBadges.map(txt => `<span class="meta-badge">${escapeHtml(txt)}</span>`).join('');
+
+    btnPrev.disabled = state.pageIndex<=0;
+    btnNext.disabled = state.pageIndex>=state.pages.length-1;
+  }
+
+  // Controls
+  languages.forEach(({code})=>{
+    const btn = langButtons[code];
+    if(!btn) return;
+    btn.addEventListener('click', ()=>{
+      if(!state.availableLangs.includes(code)) return;
+      state.lang = code;
+      render();
+    });
+  });
+  btnPrev.addEventListener('click', ()=>{ if(state.pageIndex>0){ state.pageIndex--; render(); } });
+  btnNext.addEventListener('click', ()=>{ if(state.pageIndex<state.pages.length-1){ state.pageIndex++; render(); } });
+
+  // Keyboard shortcuts
+  window.addEventListener('keydown', (e)=>{
+    const targetTag = (e.target && e.target.tagName || '').toLowerCase();
+    if(targetTag === 'input' || targetTag === 'textarea' || targetTag === 'select') return;
+
+    if(e.key==='ArrowLeft'){ e.preventDefault(); btnPrev.click(); return; }
+    if(e.key==='ArrowRight'){ e.preventDefault(); btnNext.click(); return; }
+    const rawKey = e.key;
+    const key = rawKey.toLowerCase();
+
+    if(rawKey === 'o'){
+      e.preventDefault();
+      adjustFontSize(1);
+      return;
+    }
+    if(rawKey === 'l'){
+      e.preventDefault();
+      adjustFontSize(-1);
+      return;
+    }
+    if(rawKey === 'p'){
+      e.preventDefault();
+      resetFontSize();
+      return;
+    }
+    if(key === 'i'){
+      if(state.availableImageSets.length>1){
+        e.preventDefault();
+        cycleImageSet(1);
+      }
+      return;
+    }
+
+    const langHotkey = languages.find(l => l.hotkey === key);
+    if(langHotkey && state.availableLangs.includes(langHotkey.code)){
+      state.lang = langHotkey.code;
+      render();
+      return;
+    }
+    // quick jump digits 1..9 roughly proportional
+    if(key === '0'){
+      e.preventDefault();
+      if(state.pages.length){
+        state.pageIndex = 0;
+        render();
+      }
+      return;
+    }
+    if(/^[1-9]$/.test(e.key)){
+      const k = Number(e.key);
+      const idx = Math.round((k/9)*(state.pages.length-1));
+      state.pageIndex = idx; render();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
+
+
