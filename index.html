@@ -258,6 +258,9 @@
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Configuration
+  // ---------------------------------------------------------------------------
   // Configure languages here. Each entry can define labels, file names, hotkeys, and custom page heading patterns.
   const languages = [
     {
@@ -295,6 +298,7 @@
     }
   ];
 
+  // Keyboard and UI shortcut configuration.
   const hotkeys = {
     // Keys control actual bindings; optional display strings update the footer legend.
     prevPage: { keys: ['ArrowLeft'] },
@@ -308,11 +312,15 @@
 
   const languageMap = Object.fromEntries(languages.map(lang => [lang.code, lang]));
 
+  // Markdown heading formats used to detect page sections.
   const defaultPageHeadingFormats = [
     { pattern: /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s+.*)?$/i },
     { pattern: /^\s*##\s*(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i }
   ];
 
+  // ---------------------------------------------------------------------------
+  // Hotkey helpers
+  // ---------------------------------------------------------------------------
   const HOTKEY_ALIASES = {
     '←': 'ArrowLeft',
     '→': 'ArrowRight',
@@ -419,6 +427,9 @@
     return entry.matchSet.has(normalized.toLowerCase());
   }
 
+  // ---------------------------------------------------------------------------
+  // Markdown parsing helpers
+  // ---------------------------------------------------------------------------
   function normalizePageHeadingFormats(formats){
     return (formats || []).map((format) => {
       if(format instanceof RegExp){
@@ -537,6 +548,9 @@
   const DEFAULT_FONT_SIZE = 16;
 
   // --- App State ---
+  // ---------------------------------------------------------------------------
+  // Application state
+  // ---------------------------------------------------------------------------
   const state = {
     files: [],
     lang: languages[0]?.code || '',
@@ -555,7 +569,9 @@
     imageSet: 'main'
   };
 
-  // UI elements
+  // ---------------------------------------------------------------------------
+  // DOM references
+  // ---------------------------------------------------------------------------
   const defaultTitle = 'Local Manga/Comic Reader';
   const dirInput = document.getElementById('dir');
   const pageImg = document.getElementById('pageImage');
@@ -624,6 +640,9 @@
   const mainEl = document.querySelector('main');
   const rootStyle = document.documentElement.style;
 
+  // ---------------------------------------------------------------------------
+  // UI builders
+  // ---------------------------------------------------------------------------
   function buildLanguageToggle(){
     if(!langToggle) return;
     Object.keys(langButtons).forEach(key => { delete langButtons[key]; });
@@ -658,11 +677,14 @@
     });
   }
 
+  // Build initial UI scaffolding.
   buildLanguageToggle();
   updateLangButtons();
   updateGlobalShortcutBadges();
 
-  // Helpers
+  // ---------------------------------------------------------------------------
+  // File/system helpers
+  // ---------------------------------------------------------------------------
   const byName = name => Array.from(state.files).find(f => f.name.toLowerCase() === name.toLowerCase());
   const getText = file => new Promise((res,rej)=>{ const r=new FileReader(); r.onload=()=>res(String(r.result)); r.onerror=rej; r.readAsText(file); });
   const getURL = file => URL.createObjectURL(file);
@@ -674,6 +696,9 @@
   const colorSchemeQuery = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
   let autoThemeTimer = null;
 
+  // ---------------------------------------------------------------------------
+  // Theme and layout controls
+  // ---------------------------------------------------------------------------
   function computeAutoTheme(){
     if(colorSchemeQuery){
       return colorSchemeQuery.matches ? 'light' : 'dark';
@@ -853,6 +878,9 @@
   chapterTitleEl.addEventListener('click', triggerFolderSelect);
   function status(s){ statusEl.textContent = s; }
 
+  // ---------------------------------------------------------------------------
+  // Chapter loading and parsing
+  // ---------------------------------------------------------------------------
   async function loadAll(){
     const previousImageSet = state.imageSet;
     // reset
@@ -1023,6 +1051,9 @@
     return { title, pages };
   }
 
+  // ---------------------------------------------------------------------------
+  // Rendering helpers
+  // ---------------------------------------------------------------------------
   function buildPageSelect(){
     selectEl.innerHTML = '';
     for(const pageId of state.pages){
@@ -1216,7 +1247,9 @@ function updateImageSetButtons(){
     btnNext.disabled = state.pageIndex>=state.pages.length-1;
   }
 
-  // Controls
+  // ---------------------------------------------------------------------------
+  // Event wiring
+  // ---------------------------------------------------------------------------
   btnPrev.addEventListener('click', ()=>{ if(state.pageIndex>0){ state.pageIndex--; render(); } });
   btnNext.addEventListener('click', ()=>{ if(state.pageIndex<state.pages.length-1){ state.pageIndex++; render(); } });
 
