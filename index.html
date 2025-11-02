@@ -258,11 +258,104 @@
     }
   }
 
+  // Configure languages here. Each entry can define labels, file names, hotkeys, and custom page heading patterns.
   const languages = [
-    { code: 'en', file: 'en.md', buttonId: 'btnEN', hotkey: 'e' },
-    { code: 'jp', file: 'jp.md', buttonId: 'btnJP', hotkey: 'j' },
-    { code: 'hu', file: 'hu.md', buttonId: 'btnHU', hotkey: 'h' }
+    {
+      code: 'en',
+      label: 'EN',
+      name: 'English',
+      file: 'en.md',
+      hotkey: 'e',
+      pageLabel: (id) => `Page ${id}`,
+      pageHeadingFormats: [
+        /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s+.*)?$/i
+      ]
+    },
+    {
+      code: 'jp',
+      label: 'JP',
+      name: '日本語',
+      file: 'jp.md',
+      hotkey: 'j',
+      pageLabel: (id) => `ページ ${id}`,
+      pageHeadingFormats: [
+        /^\s*##\s*(?:ページ\s*)?(\d+(?:\s*-\s*\d+)?)(?:\s+.*)?$/i
+      ]
+    },
+    {
+      code: 'hu',
+      label: 'HU',
+      name: 'Magyar',
+      file: 'hu.md',
+      hotkey: 'h',
+      pageLabel: (id) => `${id}. oldal`,
+      pageHeadingFormats: [
+        /^\s*##\s*(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i
+      ]
+    }
   ];
+
+  const languageMap = Object.fromEntries(languages.map(lang => [lang.code, lang]));
+
+  const defaultPageHeadingFormats = [
+    { pattern: /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s+.*)?$/i },
+    { pattern: /^\s*##\s*(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i }
+  ];
+
+  function normalizePageHeadingFormats(formats){
+    return (formats || []).map((format) => {
+      if(format instanceof RegExp){
+        return { pattern: format };
+      }
+      if(format && format.pattern instanceof RegExp){
+        return {
+          pattern: format.pattern,
+          extract: typeof format.extract === 'function' ? format.extract : undefined
+        };
+      }
+      return null;
+    }).filter(Boolean);
+  }
+
+  const pageHeadingFormats = (() => {
+    const seen = new Set();
+    const results = [];
+    const add = (entry) => {
+      if(!entry || !(entry.pattern instanceof RegExp)) return;
+      const key = entry.pattern.toString();
+      if(seen.has(key)) return;
+      seen.add(key);
+      results.push({
+        pattern: entry.pattern,
+        extract: typeof entry.extract === 'function' ? entry.extract : undefined
+      });
+    };
+    normalizePageHeadingFormats(defaultPageHeadingFormats).forEach(add);
+    languages.forEach(lang => {
+      normalizePageHeadingFormats(lang.pageHeadingFormats).forEach(add);
+    });
+    return results;
+  })();
+
+  function resolvePageHeadingId(rawLine){
+    if(!rawLine) return null;
+    for(const format of pageHeadingFormats){
+      const match = rawLine.match(format.pattern);
+      if(!match) continue;
+      let candidate = '';
+      if(typeof format.extract === 'function'){
+        candidate = format.extract(match);
+      }else if(match.groups && match.groups.id){
+        candidate = match.groups.id;
+      }else{
+        candidate = match[1] || '';
+      }
+      if(candidate){
+        return normalizePageId(candidate);
+      }
+    }
+    return null;
+  }
 
   const normalizePageId = (raw) => {
     if(raw === undefined || raw === null) return '';
@@ -296,15 +389,20 @@
   const formatPageLabel = (id) => id ? `Page ${id}` : 'Page -';
   const localizedPageLabel = (id, lang) => {
     if(!id) return '';
+    const entry = languageMap[lang];
     const value = String(id);
-    switch(lang){
-      case 'jp':
-        return `ページ ${value}`;
-      case 'hu':
-        return `${value}. oldal`;
-      default:
-        return `Page ${value}`;
+    if(entry){
+      const formatter = entry.pageLabel;
+      if(typeof formatter === 'function'){
+        try{
+          const result = formatter(value);
+          if(result) return result;
+        }catch(_e){}
+      }else if(typeof formatter === 'string' && formatter.includes('{page}')){
+        return formatter.replace(/\{page\}/g, value);
+      }
     }
+    return formatPageLabel(value);
   };
   const formatImageSetLabel = (key, source) => {
     if(key === 'main') return 'Original';
@@ -324,7 +422,7 @@
   // --- App State ---
   const state = {
     files: [],
-    lang: 'en',
+    lang: languages[0]?.code || '',
     pages: [], // sorted IDs
     pageIndex: 0,
     texts: Object.fromEntries(languages.map(l => [l.code, {}])), // {pageId: html}
@@ -350,7 +448,8 @@
   const pageTitle = document.getElementById('pageTitle');
   const metaEl = document.getElementById('meta');
   const selectEl = document.getElementById('pageSelect');
-  const langButtons = Object.fromEntries(languages.map(l => [l.code, document.getElementById(l.buttonId)]));
+  const langToggle = document.querySelector('.lang-toggle');
+  const langButtons = {};
   const langShortcutBadge = document.getElementById('langShortcutBadge');
   const langGroup = document.getElementById('langGroup');
   const themeToggle = document.getElementById('themeToggle');
@@ -376,6 +475,39 @@
   const divider = document.getElementById('divider');
   const mainEl = document.querySelector('main');
   const rootStyle = document.documentElement.style;
+
+  function buildLanguageToggle(){
+    if(!langToggle) return;
+    Object.keys(langButtons).forEach(key => { delete langButtons[key]; });
+    langToggle.innerHTML = '';
+    languages.forEach(lang => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.dataset.lang = lang.code;
+      btn.role = 'tab';
+      const labelText = lang.label || lang.code.toUpperCase();
+      btn.textContent = labelText;
+      const parts = [];
+      if(lang.name) parts.push(lang.name);
+      parts.push(labelText);
+      if(lang.hotkey){
+        parts.push(`Hotkey: ${lang.hotkey.toUpperCase()}`);
+      }
+      const tooltip = parts.join(' · ');
+      btn.setAttribute('aria-label', tooltip);
+      btn.setAttribute('title', tooltip);
+      btn.addEventListener('click', ()=>{
+        if(!state.availableLangs.includes(lang.code)) return;
+        state.lang = lang.code;
+        render();
+      });
+      langToggle.appendChild(btn);
+      langButtons[lang.code] = btn;
+    });
+  }
+
+  buildLanguageToggle();
+  updateLangButtons();
 
   // Helpers
   const byName = name => Array.from(state.files).find(f => f.name.toLowerCase() === name.toLowerCase());
@@ -602,7 +734,7 @@
     state.availableLangs = available;
 
     if(!state.availableLangs.includes(state.lang)){
-      state.lang = state.availableLangs[0] || languages[0].code;
+      state.lang = state.availableLangs[0] || languages[0]?.code || '';
     }
 
     const imgPattern = /^(\d+(?:-\d+)?)\.(jpe?g|png|webp)$/i;
@@ -709,7 +841,6 @@
     let currentId = null;
     let buf = [];
     let title = '';
-    const pageHeadingPattern = /^\s*##\s*(?:page\s+)?(\d+(?:\s*-\s*\d+)?)(?:\s*\.\s*oldal)?\s*$/i;
     const flush = () => {
       if(currentId!==null){
         const raw = buf.join('\n').trim();
@@ -725,11 +856,10 @@
           continue;
         }
       }
-      const m = raw.match(pageHeadingPattern);
-      if(m){
+      const headingId = resolvePageHeadingId(raw);
+      if(headingId){
         flush();
-        const id = normalizePageId(m[1]);
-        currentId = id || null;
+        currentId = headingId || null;
         continue;
       }
       if(currentId!==null){
@@ -756,21 +886,25 @@
     };
   }
 
-function updateLangButtons(){
+  function updateLangButtons(){
     let visibleCount = 0;
-    languages.forEach(({code})=>{
-      const btn = langButtons[code];
+    languages.forEach((lang)=>{
+      const btn = langButtons[lang.code];
       if(!btn) return;
-      const isAvailable = state.availableLangs.includes(code);
+      const isAvailable = state.availableLangs.includes(lang.code);
       btn.style.display = isAvailable ? '' : 'none';
+      btn.disabled = !isAvailable;
+      btn.setAttribute('aria-hidden', isAvailable ? 'false' : 'true');
       if(isAvailable){
         visibleCount++;
-        const isActive = state.lang === code;
+        const isActive = state.lang === lang.code;
         btn.classList.toggle('active', isActive);
         btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+        btn.setAttribute('tabindex', '0');
       }else{
         btn.classList.remove('active');
         btn.setAttribute('aria-selected','false');
+        btn.setAttribute('tabindex', '-1');
       }
     });
     setHidden(langGroup, visibleCount <= 1);
@@ -781,8 +915,14 @@ function updateLangButtons(){
       }else{
         setHidden(langShortcutBadge, false);
         const hotkeys = state.availableLangs.map(code => {
-          const entry = languages.find(l => l.code === code);
-          return entry ? entry.hotkey.toUpperCase() : code.toUpperCase();
+          const entry = languageMap[code];
+          if(entry && entry.hotkey){
+            return entry.hotkey.toUpperCase();
+          }
+          if(entry && entry.label){
+            return entry.label.toUpperCase();
+          }
+          return code.toUpperCase();
         });
         renderShortcutBadge(langShortcutBadge, hotkeys, 'toggle language');
       }
@@ -932,15 +1072,6 @@ function updateImageSetButtons(){
   }
 
   // Controls
-  languages.forEach(({code})=>{
-    const btn = langButtons[code];
-    if(!btn) return;
-    btn.addEventListener('click', ()=>{
-      if(!state.availableLangs.includes(code)) return;
-      state.lang = code;
-      render();
-    });
-  });
   btnPrev.addEventListener('click', ()=>{ if(state.pageIndex>0){ state.pageIndex--; render(); } });
   btnNext.addEventListener('click', ()=>{ if(state.pageIndex<state.pages.length-1){ state.pageIndex++; render(); } });
 
@@ -977,7 +1108,7 @@ function updateImageSetButtons(){
       return;
     }
 
-    const langHotkey = languages.find(l => l.hotkey === key);
+    const langHotkey = languages.find(l => (l.hotkey || '').toLowerCase() === key);
     if(langHotkey && state.availableLangs.includes(langHotkey.code)){
       state.lang = langHotkey.code;
       render();

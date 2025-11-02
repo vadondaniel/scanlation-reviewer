@@ -71,8 +71,8 @@ Rules:
 - Theme mode cycles through auto -> light -> dark; auto follows your operating system preference.
 - Drag the vertical bar between the image and text panes to resize them.
 - Viewer width and font size preferences persist for the active session. Theme mode is stored in `localStorage`.
-- To add another language, duplicate the entry pattern in the `languages` array inside `index.html` (code + markdown filename + button id + shortcut).
+- Language toggles are generated from the `languages` array near the top of `index.html`; set the `code`, display `label`, markdown `file`, optional `hotkey`, and per-language `pageLabel` without touching the HTML.
+- Support new markdown heading styles by editing the `defaultPageHeadingFormats` list or adding `pageHeadingFormats` on a language entry—provide a regular expression that captures the page number and the parser will pick it up.
 
 ## Contributing
 This is currently a single HTML file. If you plan to extend it, consider breaking the script into modules and adding tests or linting. Pull requests are welcome.
-
